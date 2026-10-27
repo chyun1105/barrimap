@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://barrimap.onrender.com";
+const API_BASE_URL = "https://barrimap.onrender.com/api/v1";
 
 async function fetchCustomRoute(params) {
   const query = new URLSearchParams(params).toString();

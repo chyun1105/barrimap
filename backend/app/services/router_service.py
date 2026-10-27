@@ -1,7 +1,6 @@
 import osmnx as ox
 import networkx as nx
 from geopy.distance import geodesic
-from app.core.config import settings
 from app.services.graph_loader import graph_loader
 from app.services.weight_calculator import weight_calculator
 from app.models.schemas import RouteRequest, RouteResponse, RouteDetail
@@ -10,9 +9,7 @@ class RouterService:
     def calculate_route(self, req: RouteRequest) -> RouteResponse:
         G = graph_loader.G
         if G is None:
-            if graph_loader.status == "failed":
-                raise RuntimeError("지도 데이터를 불러오지 못했습니다. 서버 로그를 확인해 주세요.")
-            raise RuntimeError("지도 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.")
+            raise RuntimeError("Map graph is not loaded")
 
         orig_node = ox.distance.nearest_nodes(G, req.start_lon, req.start_lat)
         dest_node = ox.distance.nearest_nodes(G, req.end_lon, req.end_lat)
@@ -28,8 +25,8 @@ class RouterService:
             ).meters
             if distance_m > 300:
                 raise ValueError(
-                    f"{label}가 현재 경로 데이터 범위({settings.ROUTE_REGION_LABEL}) 밖에 있습니다. "
-                    f"{settings.ROUTE_REGION_LABEL} 안의 장소를 선택해 주세요."
+                    f"{label}가 현재 경로 데이터 범위(신촌 주변) 밖에 있습니다. "
+                    "신촌 인근 장소를 선택해 주세요."
                 )
 
         try:
@@ -37,16 +34,14 @@ class RouterService:
         except nx.NetworkXNoPath:
             raise ValueError("일반 최단 경로를 찾을 수 없습니다.")
 
-        def custom_edge_weight(u, v, parallel_edges):
-            return min(
-                weight_calculator.calculate_edge_weight(
-                    u, v, key, data, req.user_type, req.tactile_priority
-                )
-                for key, data in parallel_edges.items()
+        G_custom = G.copy()
+        for u, v, k, data in G_custom.edges(keys=True, data=True):
+            G_custom[u][v][k]["custom_weight"] = weight_calculator.calculate_edge_weight(
+                u, v, k, data, req.user_type, req.tactile_priority
             )
 
         try:
-            acc_path = nx.shortest_path(G, orig_node, dest_node, weight=custom_edge_weight)
+            acc_path = nx.shortest_path(G_custom, orig_node, dest_node, weight="custom_weight")
         except nx.NetworkXNoPath:
             acc_path = std_path
 

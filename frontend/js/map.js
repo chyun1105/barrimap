@@ -1,22 +1,9 @@
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://tiles.openfreemap.org/styles/liberty',
-  center: [126.9122, 35.1741],
+  center: [126.9369, 37.5598],
   zoom: 15,
   attributionControl: true
-});
-map.on('style.load', () => {
-  const koreanName = ['coalesce', ['get', 'name:ko'], ['get', 'name:nonlatin'], ''];
-  map.getStyle().layers.forEach(layer => {
-    const textField = layer.layout?.['text-field'];
-    if (
-      layer.type === 'symbol' &&
-      Array.isArray(textField) &&
-      (JSON.stringify(textField).includes('name:latin') || JSON.stringify(textField).includes('name_en'))
-    ) {
-      map.setLayoutProperty(layer.id, 'text-field', koreanName);
-    }
-  });
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left');
@@ -341,7 +328,7 @@ function renderRoutes(data) {
       type: 'line',
       source: 'standard-route',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#8b9098', 'line-width': 4, 'line-opacity': 0.9, 'line-dasharray': [1, 2] }
+      paint: { 'line-color': '#64748b', 'line-width': 4, 'line-opacity': 0.85, 'line-dasharray': [1, 2] }
     });
     map.addSource('accessible-route-halo', { type: 'geojson', data: toGeoJson(accessibleCoordinates) });
     map.addLayer({

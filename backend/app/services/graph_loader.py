@@ -5,50 +5,26 @@ from app.core.config import settings
 class GraphLoader:
     def __init__(self):
         self.G = None
-        self.status = "not_started"
-        self.data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+        self.data_dir = os.path.join(os.path.dirname(__file__), "../../data")
         self.cache_file = os.path.join(self.data_dir, "map_cache.graphml")
 
     def load_graph(self):
-        self.status = "loading"
-        try:
-            os.makedirs(self.data_dir, exist_ok=True)
-            ox.settings.useful_tags_way = list(dict.fromkeys([
-                *ox.settings.useful_tags_way,
-                "foot", "footway", "tactile_paving", "incline", "surface", "wheelchair",
-                "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "crossing", "kerb",
-            ]))
-            ox.settings.useful_tags_node = list(dict.fromkeys([
-                *ox.settings.useful_tags_node,
-                "crossing", "tactile_paving", "wheelchair", "kerb",
-            ]))
-            ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
-            ox.settings.timeout = 180
-            if os.path.exists(self.cache_file):
-                print(f"[GraphLoader] 캐시된 지도 파일 로드: {self.cache_file}", flush=True)
-                graph = ox.load_graphml(self.cache_file)
-            else:
-                print(
-                    f"[GraphLoader] OpenStreetMap에서 행정구역 지도 다운로드 중 "
-                    f"({settings.DEFAULT_LOCATION})...",
-                    flush=True
-                )
-                graph = ox.graph_from_place(
-                    settings.DEFAULT_LOCATION,
-                    network_type="walk"
-                )
-                ox.save_graphml(graph, self.cache_file)
-                print("[GraphLoader] 지도 캐시 저장 완료!", flush=True)
-            self.G = graph
-            self.status = "ready"
-            print(
-                f"[GraphLoader] 지도 준비 완료: {len(graph.nodes):,}개 노드, "
-                f"{len(graph.edges):,}개 도로",
-                flush=True
+        os.makedirs(self.data_dir, exist_ok=True)
+        # Overpass 대체 미러 서버 지정 및 타임아웃 연장
+        ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
+        ox.settings.timeout = 180
+        if os.path.exists(self.cache_file):
+            print(f"[GraphLoader] 캐시된 지도 파일 로드: {self.cache_file}")
+            self.G = ox.load_graphml(self.cache_file)
+        else:
+            print(f"[GraphLoader] OpenStreetMap에서 지도 다운로드 중 ({settings.DEFAULT_LOCATION})...")
+            self.G = ox.graph_from_address(
+                settings.DEFAULT_LOCATION,
+                dist=settings.DEFAULT_DIST,
+                network_type="walk"
             )
-            return self.G
-        except Exception:
-            self.status = "failed"
-            raise
+            ox.save_graphml(self.G, self.cache_file)
+            print("[GraphLoader] 지도 캐시 저장 완료!")
+        return self.G
 
 graph_loader = GraphLoader()

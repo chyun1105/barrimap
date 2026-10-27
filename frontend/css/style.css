@@ -264,7 +264,7 @@ button:focus-visible, input:focus-visible {
 .card-acc { border: 1px solid #bfe7d7; background: #effaf4; color: #356b59; }
 .card-title { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #30445e; font-size: 11px; font-weight: 750; white-space: nowrap; }
 .route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
-.standard-dot { background: #8b9098; }
+.standard-dot { background: #8291a5; }
 .accessible-dot { background: var(--green); box-shadow: 0 0 0 3px #d8f0e5; }
 
 .warning-box {

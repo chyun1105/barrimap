@@ -1,6 +1,7 @@
 import osmnx as ox
 import networkx as nx
 from geopy.distance import geodesic
+from app.core.config import settings
 from app.services.graph_loader import graph_loader
 from app.services.weight_calculator import weight_calculator
 from app.models.schemas import RouteRequest, RouteResponse, RouteDetail
@@ -25,8 +26,8 @@ class RouterService:
             ).meters
             if distance_m > 300:
                 raise ValueError(
-                    f"{label}가 현재 경로 데이터 범위(신촌 주변) 밖에 있습니다. "
-                    "신촌 인근 장소를 선택해 주세요."
+                    f"{label}가 현재 경로 데이터 범위({settings.ROUTE_REGION_LABEL}) 밖에 있습니다. "
+                    f"{settings.ROUTE_REGION_LABEL} 안의 장소를 선택해 주세요."
                 )
 
         try:
@@ -34,14 +35,16 @@ class RouterService:
         except nx.NetworkXNoPath:
             raise ValueError("일반 최단 경로를 찾을 수 없습니다.")
 
-        G_custom = G.copy()
-        for u, v, k, data in G_custom.edges(keys=True, data=True):
-            G_custom[u][v][k]["custom_weight"] = weight_calculator.calculate_edge_weight(
-                u, v, k, data, req.user_type, req.tactile_priority
+        def custom_edge_weight(u, v, parallel_edges):
+            return min(
+                weight_calculator.calculate_edge_weight(
+                    u, v, key, data, req.user_type, req.tactile_priority
+                )
+                for key, data in parallel_edges.items()
             )
 
         try:
-            acc_path = nx.shortest_path(G_custom, orig_node, dest_node, weight="custom_weight")
+            acc_path = nx.shortest_path(G, orig_node, dest_node, weight=custom_edge_weight)
         except nx.NetworkXNoPath:
             acc_path = std_path
 

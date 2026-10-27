@@ -1,7 +1,7 @@
 class Settings:
     PROJECT_NAME: str = "Mobility Impaired Navigation"
-    DEFAULT_LOCATION: str = "Sinchon-dong, Seodaemun-gu, Seoul, South Korea"
-    DEFAULT_DIST: int = 1500
+    DEFAULT_LOCATION: str = "Buk-gu, Gwangju, South Korea"
+    ROUTE_REGION_LABEL: str = "광주광역시 북구"
     
     STAIRS_IMPASSABLE: float = 999999.0
     STAIRS_HIGH_PENALTY: float = 10.0

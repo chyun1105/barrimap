@@ -1,4 +1,5 @@
 import os
+import re
 import osmnx as ox
 from app.core.config import settings
 
@@ -6,7 +7,8 @@ class GraphLoader:
     def __init__(self):
         self.G = None
         self.data_dir = os.path.join(os.path.dirname(__file__), "../../data")
-        self.cache_file = os.path.join(self.data_dir, "map_cache.graphml")
+        region_slug = re.sub(r"[^a-z0-9]+", "_", settings.DEFAULT_LOCATION.lower()).strip("_")
+        self.cache_file = os.path.join(self.data_dir, f"map_cache_{region_slug}.graphml")
 
     def load_graph(self):
         os.makedirs(self.data_dir, exist_ok=True)
@@ -17,10 +19,9 @@ class GraphLoader:
             print(f"[GraphLoader] 캐시된 지도 파일 로드: {self.cache_file}")
             self.G = ox.load_graphml(self.cache_file)
         else:
-            print(f"[GraphLoader] OpenStreetMap에서 지도 다운로드 중 ({settings.DEFAULT_LOCATION})...")
-            self.G = ox.graph_from_address(
+            print(f"[GraphLoader] OpenStreetMap에서 행정구역 지도 다운로드 중 ({settings.DEFAULT_LOCATION})...")
+            self.G = ox.graph_from_place(
                 settings.DEFAULT_LOCATION,
-                dist=settings.DEFAULT_DIST,
                 network_type="walk"
             )
             ox.save_graphml(self.G, self.cache_file)

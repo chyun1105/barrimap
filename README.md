@@ -3,7 +3,7 @@
 이동이 불편한 교통약자(휠체어/유모차 사용자, 시각장애인, 거동 불편 노약자)를 위한 맞춤형 경로 탐색 웹 내비게이션 서비스입니다.
 
 ## 🌟 주요 기능
-1. **유형별 맞춤 경로 탐색**:
+1. **유형별 맞춤 경로 탐색** (현재 경로 데이터: 광주광역시 북구):
    - **휠체어/유모차**: 계단(`steps`) 전면 차단, 급경사 및 불량 노면 회피
    - **시각장애인**: 점자블록 우선 경로 선택 토글, 점자블록 미설치 구간 경고 안내
    - **거동 불편 노약자**: 완만한 평지 경로 우대 및 계단 패널티
@@ -17,6 +17,8 @@
 - **Backend**: Python 3.10, FastAPI, OSMnx, NetworkX, Geopy, Uvicorn
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+), MapLibre GL JS, OpenFreeMap, TensorFlow.js
 - **Deployment**: Render.com (Backend), Vercel (Frontend)
+
+OSM 보행 네트워크는 첫 실행 때 광주광역시 북구 행정구역 기준으로 다운로드되며, `backend/data/map_cache_buk_gu_gwangju_south_korea.graphml`에 캐시됩니다. Render의 파일 시스템이 재시작/재배포 후 초기화되는 구성이라면 캐시가 유지되지 않아 다시 다운로드할 수 있습니다.
 
 ## 📁 프로젝트 구조
 ```

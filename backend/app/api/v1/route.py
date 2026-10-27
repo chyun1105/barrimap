@@ -25,5 +25,7 @@ def get_custom_route(
         return router_service.calculate_route(req)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except RuntimeError as re:
+        raise HTTPException(status_code=503, detail=str(re))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"경로 탐색 중 오류 발생: {str(e)}")

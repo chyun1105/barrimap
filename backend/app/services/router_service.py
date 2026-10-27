@@ -10,7 +10,9 @@ class RouterService:
     def calculate_route(self, req: RouteRequest) -> RouteResponse:
         G = graph_loader.G
         if G is None:
-            raise RuntimeError("Map graph is not loaded")
+            if graph_loader.status == "failed":
+                raise RuntimeError("지도 데이터를 불러오지 못했습니다. 서버 로그를 확인해 주세요.")
+            raise RuntimeError("지도 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.")
 
         orig_node = ox.distance.nearest_nodes(G, req.start_lon, req.start_lat)
         dest_node = ox.distance.nearest_nodes(G, req.end_lon, req.end_lat)

@@ -18,9 +18,8 @@ class GraphLoader:
             self.G = ox.load_graphml(self.cache_file)
         else:
             print(f"[GraphLoader] OpenStreetMap에서 지도 다운로드 중 ({settings.DEFAULT_LOCATION})...")
-            self.G = ox.graph_from_address(
+            self.G = ox.graph_from_place(
                 settings.DEFAULT_LOCATION,
-                dist=settings.DEFAULT_DIST,
                 network_type="walk"
             )
             ox.save_graphml(self.G, self.cache_file)

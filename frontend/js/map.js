@@ -97,8 +97,7 @@ function renderRoutes(data) {
   const warnBox = document.getElementById('warning-text');
   if (data.warnings && data.warnings.length > 0) {
     warnBox.style.display = 'block';
-    warnBox.innerText = "⚠️ " + data.warnings.join("
-");
+    warnBox.innerText = "⚠️ " + data.warnings.join("\n");
   } else {
     warnBox.style.display = 'none';
   }

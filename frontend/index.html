@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>교통약자 맞춤형 내비게이션</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <div class="top-panel">
+    <div class="type-buttons">
+      <button class="type-btn active" onclick="selectType('wheelchair', this)">휠체어/유모차</button>
+      <button class="type-btn" onclick="selectType('visually_impaired', this)">시각장애인</button>
+      <button class="type-btn" onclick="selectType('mobility_impaired', this)">거동 불편</button>
+    </div>
+
+    <div class="toggle-container" id="tactile-toggle">
+      <span class="toggle-label">점자블록 있는 길 우선</span>
+      <input type="checkbox" id="tactile-chk" checked>
+    </div>
+
+    <div class="pin-selectors">
+      <button class="pin-btn" id="btn-start" onclick="setPinMode('start')">📍 출발지 선택</button>
+      <button class="pin-btn" id="btn-end" onclick="setPinMode('end')">🏁 목적지 선택</button>
+    </div>
+
+    <button class="search-btn" onclick="requestRoute()">맞춤 경로 비교 탐색</button>
+  </div>
+
+  <div class="bottom-sheet" id="result-sheet">
+    <div class="sheet-header">경로 비교 결과</div>
+    <div class="comparison-grid">
+      <div class="route-card card-std">
+        <div class="card-title" style="color: #64748b;">🔴 일반 최단 경로</div>
+        <div id="std-dist">거리: -</div>
+        <div id="std-stairs">계단 구간: -</div>
+      </div>
+      <div class="route-card card-acc">
+        <div class="card-title" style="color: #059669;">🟢 교통약자 맞춤 경로</div>
+        <div id="acc-dist">거리: -</div>
+        <div id="acc-stairs">계단 구간: 0개</div>
+      </div>
+    </div>
+    <div class="warning-box" id="warning-text" style="display: none;"></div>
+  </div>
+
+  <div id="cam-container">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/sensors.js"></script>
+</body>
+</html>

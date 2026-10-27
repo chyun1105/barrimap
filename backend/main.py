@@ -37,7 +37,7 @@ def startup_event():
 
     threading.Thread(target=load_graph, name="map-graph-loader", daemon=True).start()
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root():
     return {
         "message": "Barrier-Free Navigation API is running.",

@@ -18,7 +18,7 @@
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+), MapLibre GL JS, OpenFreeMap, TensorFlow.js
 - **Deployment**: Render.com (Backend), Vercel (Frontend)
 
-OSM 보행 네트워크는 첫 실행 때 광주광역시 북구 행정구역 기준으로 다운로드되며, `backend/data/map_cache_buk_gu_gwangju_south_korea.graphml`에 캐시됩니다. Render의 파일 시스템이 재시작/재배포 후 초기화되는 구성이라면 캐시가 유지되지 않아 다시 다운로드할 수 있습니다.
+OSM 보행 네트워크는 광주광역시 북구 행정구역의 OpenStreetMap 데이터 기준이며, `backend/data/map_cache.graphml`에 포함되어 있습니다. 캐시를 새로 만들 때는 Render의 파일 시스템이 재시작/재배포 후 초기화되는 구성이라면 다시 다운로드할 수 있습니다.
 
 ## 📁 프로젝트 구조
 ```

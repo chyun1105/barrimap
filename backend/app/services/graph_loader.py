@@ -1,5 +1,4 @@
 import os
-import re
 import osmnx as ox
 from app.core.config import settings
 
@@ -7,14 +6,22 @@ class GraphLoader:
     def __init__(self):
         self.G = None
         self.status = "not_started"
-        self.data_dir = os.path.join(os.path.dirname(__file__), "../../data")
-        region_slug = re.sub(r"[^a-z0-9]+", "_", settings.DEFAULT_LOCATION.lower()).strip("_")
-        self.cache_file = os.path.join(self.data_dir, f"map_cache_{region_slug}.graphml")
+        self.data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+        self.cache_file = os.path.join(self.data_dir, "map_cache.graphml")
 
     def load_graph(self):
         self.status = "loading"
         try:
             os.makedirs(self.data_dir, exist_ok=True)
+            ox.settings.useful_tags_way = list(dict.fromkeys([
+                *ox.settings.useful_tags_way,
+                "foot", "footway", "tactile_paving", "incline", "surface", "wheelchair",
+                "sidewalk", "sidewalk:both", "sidewalk:left", "sidewalk:right", "crossing", "kerb",
+            ]))
+            ox.settings.useful_tags_node = list(dict.fromkeys([
+                *ox.settings.useful_tags_node,
+                "crossing", "tactile_paving", "wheelchair", "kerb",
+            ]))
             ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
             ox.settings.timeout = 180
             if os.path.exists(self.cache_file):

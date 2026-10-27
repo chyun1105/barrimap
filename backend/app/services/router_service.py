@@ -1,5 +1,6 @@
 import osmnx as ox
 import networkx as nx
+from geopy.distance import geodesic
 from app.services.graph_loader import graph_loader
 from app.services.weight_calculator import weight_calculator
 from app.models.schemas import RouteRequest, RouteResponse, RouteDetail
@@ -12,6 +13,21 @@ class RouterService:
 
         orig_node = ox.distance.nearest_nodes(G, req.start_lon, req.start_lat)
         dest_node = ox.distance.nearest_nodes(G, req.end_lon, req.end_lat)
+
+        for label, node, lat, lon in (
+            ("출발지", orig_node, req.start_lat, req.start_lon),
+            ("도착지", dest_node, req.end_lat, req.end_lon),
+        ):
+            nearest_node = G.nodes[node]
+            distance_m = geodesic(
+                (lat, lon),
+                (nearest_node["y"], nearest_node["x"])
+            ).meters
+            if distance_m > 300:
+                raise ValueError(
+                    f"{label}가 현재 경로 데이터 범위(신촌 주변) 밖에 있습니다. "
+                    "신촌 인근 장소를 선택해 주세요."
+                )
 
         try:
             std_path = nx.shortest_path(G, orig_node, dest_node, weight="length")

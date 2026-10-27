@@ -8,13 +8,14 @@
    - **시각장애인**: 점자블록 우선 경로 선택 토글, 점자블록 미설치 구간 경고 안내
    - **거동 불편 노약자**: 완만한 평지 경로 우대 및 계단 패널티
 2. **이중 경로 동시 비교**: 일반 최단 경로 vs 교통약자 맞춤 경로 지도 동시 시각화 및 비교 통계 (거리, 계단 수, 점자 미설치 수)
-3. **스마트폰 모바일 최적화 UI**: Leaflet.js 기반 반응형 인터페이스, 위치 핀 찍기 지원
-4. **카메라 AI 위험물 인식**: TensorFlow.js COCO-SSD 기반 실시간 장애물 인지
-5. **센서 이상 움직임 감지**: 가속도 센서 활용 낙상/충격 감지 및 비상 경보
+3. **장소 검색**: Photon 지오코더로 출발지와 목적지를 검색; API 키 없이 사용 가능
+4. **스마트폰 모바일 최적화 UI**: MapLibre GL JS와 OpenFreeMap 벡터 지도 기반 반응형 인터페이스, 지도에서 위치 선택 지원
+5. **카메라 AI 위험물 인식**: 시각장애인 경로 안내를 시작한 동안 TensorFlow.js COCO-SSD 기반 실시간 장애물 인지; 안내 종료 시 카메라 자동 종료
+6. **센서 이상 움직임 감지**: 가속도 센서 활용 낙상/충격 감지 및 비상 경보
 
 ## 🛠 기술 스택
 - **Backend**: Python 3.10, FastAPI, OSMnx, NetworkX, Geopy, Uvicorn
-- **Frontend**: HTML5, CSS3, JavaScript (ES6+), Leaflet.js, TensorFlow.js
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+), MapLibre GL JS, OpenFreeMap, TensorFlow.js
 - **Deployment**: Render.com (Backend), Vercel (Frontend)
 
 ## 📁 프로젝트 구조
@@ -31,7 +32,7 @@ mobility-nav-system/
 │   ├── Dockerfile
 │   ├── main.py
 │   └── requirements.txt
-└── frontend/               # Leaflet 웹 프론트엔드
+└── frontend/               # MapLibre GL JS 웹 프론트엔드
     ├── css/
     ├── js/
     └── index.html

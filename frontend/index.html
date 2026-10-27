@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>교통약자 맞춤형 내비게이션</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="css/style.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 </head>
@@ -15,10 +15,21 @@
   <div id="map"></div>
 
   <div class="top-panel">
-    <div class="type-buttons">
-      <button class="type-btn active" onclick="selectType('wheelchair', this)">휠체어/유모차</button>
-      <button class="type-btn" onclick="selectType('visually_impaired', this)">시각장애인</button>
-      <button class="type-btn" onclick="selectType('mobility_impaired', this)">거동 불편</button>
+    <div class="brand-row">
+      <div class="brand-mark" aria-hidden="true">B</div>
+      <div>
+        <div class="brand-name">배리맵</div>
+        <div class="brand-caption">모두를 위한 안전한 길찾기</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">이동 유형</div>
+      <div class="type-buttons">
+        <button class="type-btn active" onclick="selectType('wheelchair', this)">♿ 휠체어·유모차</button>
+        <button class="type-btn" onclick="selectType('visually_impaired', this)">👁️ 시각장애인</button>
+        <button class="type-btn" onclick="selectType('mobility_impaired', this)">🚶 거동 불편</button>
+      </div>
     </div>
 
     <div class="toggle-container" id="tactile-toggle">
@@ -26,29 +37,66 @@
       <input type="checkbox" id="tactile-chk" checked>
     </div>
 
-    <div class="pin-selectors">
-      <button class="pin-btn" id="btn-start" onclick="setPinMode('start')">📍 출발지 선택</button>
-      <button class="pin-btn" id="btn-end" onclick="setPinMode('end')">🏁 목적지 선택</button>
+    <div class="section-title location-title">어디로 이동할까요?</div>
+    <div class="location-list">
+      <div class="location-field" data-location="start">
+        <span class="location-marker location-marker-start" aria-hidden="true">A</span>
+        <div class="location-input-wrap">
+          <label class="sr-only" for="start-search">출발지 검색</label>
+          <input id="start-search" class="location-input" type="search" placeholder="출발지 검색 (예: 신촌역)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="start-suggestions">
+          <div class="location-suggestions" id="start-suggestions" role="listbox"></div>
+        </div>
+        <button class="map-pick-btn" id="btn-start" onclick="setPinMode('start')" aria-label="지도에서 출발지 선택" title="지도에서 선택">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+        </button>
+      </div>
+      <div class="location-connector" aria-hidden="true"></div>
+      <div class="location-field" data-location="end">
+        <span class="location-marker location-marker-end" aria-hidden="true">B</span>
+        <div class="location-input-wrap">
+          <label class="sr-only" for="end-search">도착지 검색</label>
+          <input id="end-search" class="location-input" type="search" placeholder="도착지 검색 (예: 연세대학교)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="end-suggestions">
+          <div class="location-suggestions" id="end-suggestions" role="listbox"></div>
+        </div>
+        <button class="map-pick-btn" id="btn-end" onclick="setPinMode('end')" aria-label="지도에서 도착지 선택" title="지도에서 선택">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+        </button>
+      </div>
     </div>
+    <p class="coverage-note">장소 검색은 API 키 없이 이용 가능해요. 현재 경로 데이터는 신촌 주변만 지원합니다.</p>
 
-    <button class="search-btn" onclick="requestRoute()">맞춤 경로 비교 탐색</button>
+    <button class="search-btn" onclick="requestRoute()">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
+      맞춤 경로 찾기
+    </button>
   </div>
 
   <div class="bottom-sheet" id="result-sheet">
-    <div class="sheet-header">경로 비교 결과</div>
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <div class="sheet-heading">
+      <div>
+        <div class="sheet-eyebrow">ROUTE OPTIONS</div>
+        <div class="sheet-header">맞춤 경로 비교</div>
+      </div>
+      <span class="safe-badge"><span aria-hidden="true">✓</span> 안전 우선</span>
+    </div>
     <div class="comparison-grid">
       <div class="route-card card-std">
-        <div class="card-title" style="color: #64748b;">🔴 일반 최단 경로</div>
+        <div class="card-title"><span class="route-dot standard-dot"></span>일반 최단 경로</div>
         <div id="std-dist">거리: -</div>
         <div id="std-stairs">계단 구간: -</div>
       </div>
       <div class="route-card card-acc">
-        <div class="card-title" style="color: #059669;">🟢 교통약자 맞춤 경로</div>
+        <div class="card-title"><span class="route-dot accessible-dot"></span>교통약자 맞춤</div>
         <div id="acc-dist">거리: -</div>
         <div id="acc-stairs">계단 구간: 0개</div>
       </div>
     </div>
     <div class="warning-box" id="warning-text" style="display: none;"></div>
+    <div class="guidance-actions">
+      <button class="guidance-btn" id="btn-guidance-start" onclick="startRouteGuidance()">경로 안내 시작</button>
+      <button class="guidance-btn guidance-stop" id="btn-guidance-stop" onclick="stopRouteGuidance()" style="display: none;">안내 종료</button>
+    </div>
   </div>
 
   <div id="cam-container">

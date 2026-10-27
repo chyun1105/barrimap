@@ -10,6 +10,9 @@ class GraphLoader:
 
     def load_graph(self):
         os.makedirs(self.data_dir, exist_ok=True)
+        # Overpass 대체 미러 서버 지정 및 타임아웃 연장
+        ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
+        ox.settings.timeout = 180
         if os.path.exists(self.cache_file):
             print(f"[GraphLoader] 캐시된 지도 파일 로드: {self.cache_file}")
             self.G = ox.load_graphml(self.cache_file)

@@ -15,17 +15,23 @@ class GraphLoader:
             os.makedirs(self.data_dir, exist_ok=True)
             ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
             ox.settings.timeout = 180
+            ox.settings.useful_tags_way = list(dict.fromkeys([
+                *ox.settings.useful_tags_way,
+                "foot", "wheelchair", "surface", "smoothness", "tactile_paving",
+                "incline", "crossing", "sidewalk", "lit", "sac_scale",
+            ]))
             if os.path.exists(self.cache_file):
                 print(f"[GraphLoader] 캐시된 지도 파일 로드: {self.cache_file}", flush=True)
                 graph = ox.load_graphml(self.cache_file)
             else:
                 print(
-                    f"[GraphLoader] OpenStreetMap에서 행정구역 지도 다운로드 중 "
+                    f"[GraphLoader] OpenStreetMap에서 주변 보행 지도 다운로드 중 "
                     f"({settings.DEFAULT_LOCATION})...",
                     flush=True
                 )
-                graph = ox.graph_from_place(
-                    settings.DEFAULT_LOCATION,
+                graph = ox.graph_from_point(
+                    (settings.DEFAULT_LATITUDE, settings.DEFAULT_LONGITUDE),
+                    dist=settings.DEFAULT_DIST,
                     network_type="walk"
                 )
                 ox.save_graphml(graph, self.cache_file)

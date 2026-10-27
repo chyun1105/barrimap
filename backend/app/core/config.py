@@ -1,7 +1,10 @@
 class Settings:
     PROJECT_NAME: str = "Mobility Impaired Navigation"
-    DEFAULT_LOCATION: str = "Buk-gu, Gwangju, South Korea"
-    ROUTE_REGION_LABEL: str = "광주광역시 북구"
+    DEFAULT_LOCATION: str = "서울대학교 관악캠퍼스 주변"
+    DEFAULT_LATITUDE: float = 37.4599
+    DEFAULT_LONGITUDE: float = 126.9519
+    DEFAULT_DIST: int = 3000
+    ROUTE_REGION_LABEL: str = "서울대 관악캠퍼스 주변"
     
     STAIRS_IMPASSABLE: float = 999999.0
     STAIRS_HIGH_PENALTY: float = 10.0

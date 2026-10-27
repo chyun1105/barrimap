@@ -1,7 +1,7 @@
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://tiles.openfreemap.org/styles/liberty',
-  center: [126.9122, 35.1741],
+  center: [126.9519, 37.4599],
   zoom: 13,
   attributionControl: true
 });
@@ -85,8 +85,8 @@ async function findPlaces(mode, query) {
     const params = new URLSearchParams({
       q: query,
       limit: '5',
-      lat: '35.1741',
-      lon: '126.9122'
+      lat: '37.4599',
+      lon: '126.9519'
     });
     const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
       signal: controller.signal,

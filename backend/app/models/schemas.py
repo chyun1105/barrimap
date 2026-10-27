@@ -2,10 +2,10 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 class RouteRequest(BaseModel):
-    start_lat: float = Field(..., example=35.1741)
-    start_lon: float = Field(..., example=126.9122)
-    end_lat: float = Field(..., example=35.1760)
-    end_lon: float = Field(..., example=126.9140)
+    start_lat: float = Field(..., example=37.4599)
+    start_lon: float = Field(..., example=126.9519)
+    end_lat: float = Field(..., example=37.4630)
+    end_lon: float = Field(..., example=126.9480)
     user_type: str = Field("wheelchair", description="wheelchair | visually_impaired | mobility_impaired")
     tactile_priority: bool = Field(False)
 

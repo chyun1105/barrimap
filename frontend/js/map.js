@@ -1,7 +1,7 @@
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://tiles.openfreemap.org/styles/liberty',
-  center: [126.9519, 37.4599],
+  center: [129.0354, 35.1159],
   zoom: 13,
   attributionControl: true
 });
@@ -32,10 +32,17 @@ function updatePinButton(mode, isSet, placeName) {
 }
 
 function clearRoutes() {
-  ['standard-route', 'accessible-route-halo', 'accessible-route'].forEach(id => {
+  [
+    'standard-route',
+    'accessible-route-halo',
+    'accessible-route',
+    'tactile-route-segments'
+  ].forEach(id => {
     if (map.getLayer(id)) map.removeLayer(id);
     if (map.getSource(id)) map.removeSource(id);
   });
+  document.getElementById('tactile-legend').style.display = 'none';
+  document.getElementById('tactile-summary').style.display = 'none';
   document.getElementById('result-sheet').style.display = 'none';
 }
 
@@ -85,8 +92,8 @@ async function findPlaces(mode, query) {
     const params = new URLSearchParams({
       q: query,
       limit: '5',
-      lat: '37.4599',
-      lon: '126.9519'
+      lat: '35.1159',
+      lon: '129.0354'
     });
     const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
       signal: controller.signal,
@@ -227,6 +234,7 @@ function selectType(type, btn) {
   if (type !== selectedType) {
     stopRouteGuidance();
     document.querySelector('.guidance-actions').style.display = 'none';
+    clearRoutes();
   }
   selectedType = type;
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
@@ -276,6 +284,24 @@ map.on('click', function(e) {
   setPinMode(null);
 });
 
+map.on('click', function(e) {
+  if (!map.getLayer('tactile-route-segments')) return;
+  const [feature] = map.queryRenderedFeatures(e.point, {
+    layers: ['tactile-route-segments']
+  });
+  if (!feature) return;
+
+  const labels = {
+    yes: '점자블록 있음',
+    no: '점자블록 없음으로 등록됨',
+    unknown: '점자블록 정보 없음'
+  };
+  new maplibregl.Popup({ closeButton: false, offset: 8 })
+    .setLngLat(e.lngLat)
+    .setText(labels[feature.properties.tactile_status] || labels.unknown)
+    .addTo(map);
+});
+
 async function requestRoute() {
   if (!startCoord || !endCoord) {
     alert("지도에서 출발지와 목적지를 먼저 선택해 주세요.");
@@ -306,7 +332,12 @@ async function requestRoute() {
 
 function renderRoutes(data) {
   const drawRoutes = () => {
-    ['standard-route', 'accessible-route-halo', 'accessible-route'].forEach(id => {
+    [
+      'standard-route',
+      'accessible-route-halo',
+      'accessible-route',
+      'tactile-route-segments'
+    ].forEach(id => {
       if (map.getLayer(id)) map.removeLayer(id);
       if (map.getSource(id)) map.removeSource(id);
     });
@@ -344,15 +375,49 @@ function renderRoutes(data) {
       type: 'line',
       source: 'accessible-route',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#1685f8', 'line-width': 6, 'line-opacity': 1 }
+      paint: {
+        'line-color': '#1685f8',
+        'line-width': 6,
+        'line-opacity': selectedType === 'visually_impaired' ? 0.25 : 1
+      }
     });
+    if (selectedType === 'visually_impaired' && data.accessible_route.tactile_segments?.length) {
+      const tactileFeatures = data.accessible_route.tactile_segments.map(segment => ({
+        type: 'Feature',
+        properties: { tactile_status: segment.tactile_status },
+        geometry: {
+          type: 'LineString',
+          coordinates: segment.coordinates.map(([lat, lon]) => [lon, lat])
+        }
+      }));
+      map.addSource('tactile-route-segments', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: tactileFeatures }
+      });
+      map.addLayer({
+        id: 'tactile-route-segments',
+        type: 'line',
+        source: 'tactile-route-segments',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'tactile_status'],
+            'yes', '#138a5b',
+            'no', '#d83b3b',
+            '#e2a327'
+          ],
+          'line-width': 6
+        }
+      });
+    }
 
     const bounds = new maplibregl.LngLatBounds();
     accessibleCoordinates.forEach(([lat, lon]) => bounds.extend([lon, lat]));
     map.fitBounds(bounds, { padding: 50, maxZoom: 17 });
   };
-  if (map.isStyleLoaded()) drawRoutes();
-  else map.once('load', drawRoutes);
+  if (map.getStyle()) drawRoutes();
+  else map.once('style.load', drawRoutes);
 
   document.getElementById('result-sheet').style.display = 'block';
   document.getElementById('std-dist').innerText = `거리: ${data.standard_route.distance_m}m`;
@@ -360,6 +425,16 @@ function renderRoutes(data) {
 
   document.getElementById('acc-dist').innerText = `거리: ${data.accessible_route.distance_m}m`;
   document.getElementById('acc-stairs').innerText = `계단 구간: ${data.accessible_route.stairs_count}곳`;
+  document.getElementById('acc-grade').innerText =
+    `경사 8% 초과: ${data.accessible_route.steep_segments_count}구간 · 최대 ${data.accessible_route.max_grade_percent}%`;
+  const tactileSummary = document.getElementById('tactile-summary');
+  tactileSummary.style.display = selectedType === 'visually_impaired' ? 'block' : 'none';
+  tactileSummary.textContent =
+    `점자블록 있음 ${data.accessible_route.tactile_yes_count}구간 · ` +
+    `없음 ${data.accessible_route.tactile_no_count}구간 · ` +
+    `정보 없음 ${data.accessible_route.tactile_unknown_count}구간`;
+  document.getElementById('tactile-legend').style.display =
+    selectedType === 'visually_impaired' ? 'flex' : 'none';
 
   const warnBox = document.getElementById('warning-text');
   if (data.warnings && data.warnings.length > 0) {

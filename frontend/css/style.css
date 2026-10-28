@@ -263,9 +263,29 @@ button:focus-visible, input:focus-visible {
 .card-std { border: 1px solid #e4e9ef; background: #f7f9fc; color: #66758a; }
 .card-acc { border: 1px solid #bfe7d7; background: #effaf4; color: #356b59; }
 .card-title { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #30445e; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.route-card #acc-grade { color: #52647a; font-size: 10px; }
 .route-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
 .standard-dot { background: #8291a5; }
 .accessible-dot { background: var(--green); box-shadow: 0 0 0 3px #d8f0e5; }
+
+.tactile-summary {
+  margin-top: 9px;
+  color: #52647a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.tactile-legend {
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 7px;
+  color: #52647a;
+  font-size: 10px;
+}
+.tactile-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.tactile-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.tactile-yes { background: #138a5b; }
+.tactile-no { background: #d83b3b; }
+.tactile-unknown { background: #e2a327; }
 
 .warning-box {
   margin-top: 10px;

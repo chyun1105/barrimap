@@ -204,6 +204,11 @@ function setupPlaceSearch(mode) {
 
   input.addEventListener('keydown', event => {
     if (event.key === 'Escape') hideSuggestions(mode);
+    if (event.key === 'Enter' && input.value.trim().length >= 2) {
+      event.preventDefault();
+      if (search.timer) clearTimeout(search.timer);
+      findPlaces(mode, input.value.trim());
+    }
     if (event.key === 'ArrowDown') {
       const firstOption = list.querySelector('.place-option');
       if (firstOption) {
@@ -454,6 +459,12 @@ async function startRouteGuidance() {
   document.getElementById('btn-guidance-start').style.display = 'none';
   document.getElementById('btn-guidance-stop').style.display = 'block';
 
+  try {
+    await startMotionMonitoring();
+  } catch (error) {
+    console.error("동작 센서를 시작하지 못했습니다.", error);
+  }
+
   if (selectedType !== 'visually_impaired') return;
 
   document.getElementById('cam-container').style.display = 'block';
@@ -471,6 +482,7 @@ function stopRouteGuidance() {
   const camContainer = document.getElementById('cam-container');
   if (camContainer) camContainer.style.display = 'none';
   if (typeof stopCamera === 'function') stopCamera();
+  if (typeof stopMotionMonitoring === 'function') stopMotionMonitoring();
 
   const startButton = document.getElementById('btn-guidance-start');
   const stopButton = document.getElementById('btn-guidance-stop');

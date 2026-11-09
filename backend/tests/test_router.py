@@ -8,6 +8,29 @@ from app.services.router_service import RouterService
 from app.services.weight_calculator import weight_calculator
 
 class TestWeightCalculator(unittest.TestCase):
+    def test_prepared_routing_weights_match_calculated_weights(self):
+        graph = nx.MultiDiGraph()
+        graph.add_edge(
+            1, 2, length=100.0, highway="footway", grade_abs=0.08,
+            surface="gravel", tactile_paving="no"
+        )
+
+        weight_calculator.prepare_graph(graph)
+        edge = graph[1][2][0]
+        for user_type, tactile_priority in (
+            ("wheelchair", False),
+            ("visually_impaired", False),
+            ("visually_impaired", True),
+            ("mobility_impaired", False),
+        ):
+            key = weight_calculator.routing_weight_key(user_type, tactile_priority)
+            self.assertEqual(
+                edge[key],
+                weight_calculator.calculate_edge_weight(
+                    1, 2, 0, edge, user_type, tactile_priority
+                ),
+            )
+
     def test_wheelchair_stairs_blocking(self):
         edge = {"highway": "steps", "length": 10.0}
         weight = weight_calculator.calculate_edge_weight(1, 2, 0, edge, "wheelchair", False)
@@ -62,6 +85,7 @@ class TestRouterService(unittest.TestCase):
         graph.add_edge(1, 3, length=220.0, highway="footway", grade_abs=0.10, tactile_paving="yes")
         graph.add_edge(1, 2, length=120.0, highway="footway", grade_abs=0.01, tactile_paving="yes")
         graph.add_edge(2, 3, length=120.0, highway="footway", grade_abs=0.01)
+        weight_calculator.prepare_graph(graph)
         request = RouteRequest(
             start_lat=35.1159,
             start_lon=129.0354,

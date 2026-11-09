@@ -4,6 +4,36 @@ import re
 from app.core.config import settings
 
 class WeightCalculator:
+    ROUTING_WEIGHT_KEYS = {
+        ("wheelchair", False): "_route_weight_wheelchair",
+        ("wheelchair", True): "_route_weight_wheelchair",
+        ("visually_impaired", False): "_route_weight_visually_impaired",
+        ("visually_impaired", True): "_route_weight_visually_impaired_tactile",
+        ("mobility_impaired", False): "_route_weight_mobility_impaired",
+        ("mobility_impaired", True): "_route_weight_mobility_impaired",
+    }
+
+    @classmethod
+    def routing_weight_key(cls, user_type: str, tactile_priority: bool):
+        return cls.ROUTING_WEIGHT_KEYS.get((user_type, tactile_priority))
+
+    def prepare_graph(self, graph):
+        for start, end, key, edge in graph.edges(keys=True, data=True):
+            edge["_route_weight_wheelchair"] = self.calculate_edge_weight(
+                start, end, key, edge, "wheelchair", False
+            )
+            edge["_route_weight_visually_impaired"] = self.calculate_edge_weight(
+                start, end, key, edge, "visually_impaired", False
+            )
+            edge["_route_weight_visually_impaired_tactile"] = self.calculate_edge_weight(
+                start, end, key, edge, "visually_impaired", True
+            )
+            edge["_route_weight_mobility_impaired"] = self.calculate_edge_weight(
+                start, end, key, edge, "mobility_impaired", False
+            )
+
+        graph.graph["_routing_weights_prepared"] = True
+
     @staticmethod
     def tactile_status(edge) -> str:
         value = edge.get("tactile_paving")

@@ -37,17 +37,20 @@ class RouterService:
         stairs_count = 0
         tactile_counts = {"yes": 0, "no": 0, "unknown": 0}
         grade_values = []
+        weight_key = weight_calculator.routing_weight_key(user_type, tactile_priority)
 
         for start, end in zip(path, path[1:]):
             edge_options = graph.get_edge_data(start, end)
             _, edge = min(
                 edge_options.items(),
                 key=lambda item: (
-                    weight_calculator.calculate_edge_weight(
+                    float(item[1].get("length", 1.0))
+                    if not accessible
+                    else item[1][weight_key]
+                    if weight_key and graph.graph.get("_routing_weights_prepared")
+                    else weight_calculator.calculate_edge_weight(
                         start, end, item[0], item[1], user_type, tactile_priority
                     )
-                    if accessible
-                    else float(item[1].get("length", 1.0))
                 )
             )
             edge_coordinates = self._edge_coordinates(graph, start, end, edge)
@@ -126,12 +129,20 @@ class RouterService:
                 )
                 for key, data in edge_options.items()
             )
+
+        routing_weight_key = weight_calculator.routing_weight_key(
+            req.user_type, req.tactile_priority
+        )
         try:
             acc_path = nx.shortest_path(
                 G,
                 orig_node,
                 dest_node,
-                weight=custom_weight
+                weight=(
+                    routing_weight_key
+                    if routing_weight_key and G.graph.get("_routing_weights_prepared")
+                    else custom_weight
+                )
             )
         except nx.NetworkXNoPath:
             acc_path = std_path

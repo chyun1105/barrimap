@@ -1,6 +1,7 @@
 import os
 import osmnx as ox
 from app.core.config import settings
+from app.services.weight_calculator import weight_calculator
 
 class GraphLoader:
     def __init__(self):
@@ -37,6 +38,7 @@ class GraphLoader:
                 ox.save_graphml(graph, self.cache_file)
                 print("[GraphLoader] 지도 캐시 저장 완료!", flush=True)
 
+            weight_calculator.prepare_graph(graph)
             self.G = graph
             self.status = "ready"
             print(

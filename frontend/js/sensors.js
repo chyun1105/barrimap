@@ -1,31 +1,124 @@
+const WARNING_COOLDOWN_MS = 8000;
+const SHOCK_THRESHOLD = 30;
+const OBSTACLE_CONFIDENCE_THRESHOLD = 0.6;
+
+let cameraStream = null;
+let detectionTimer = null;
+let detectionInProgress = false;
+let motionMonitoring = false;
+let obstacleDetected = false;
+const lastWarningAt = new Map();
+
+function speakWarning(key, message) {
+  if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+    console.warn('이 브라우저는 음성 안내를 지원하지 않습니다:', message);
+    return;
+  }
+
+  const now = Date.now();
+  if (now - (lastWarningAt.get(key) || 0) < WARNING_COOLDOWN_MS) return;
+  lastWarningAt.set(key, now);
+
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = 'ko-KR';
+  utterance.rate = 1;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
 async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('이 브라우저에서는 카메라를 사용할 수 없습니다.');
+  }
+  if (!window.cocoSsd) {
+    throw new Error('장애물 감지 모델을 불러오지 못했습니다.');
+  }
+
   const video = document.getElementById('webcam');
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment' }
+  });
+  video.srcObject = cameraStream;
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = stream;
-    if (window.cocoSsd) {
-      const model = await cocoSsd.load();
-      setInterval(async () => {
+    await video.play();
+    const model = await window.cocoSsd.load();
+    detectionTimer = setInterval(async () => {
+      if (detectionInProgress || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      detectionInProgress = true;
+      try {
         const predictions = await model.detect(video);
-        if (predictions.length > 0) {
-          const danger = predictions.find(p => ['car', 'chair', 'person', 'bicycle'].includes(p.class));
-          if (danger) {
-            console.warn("전방 장애물 감지:", danger.class);
-          }
+        const danger = predictions.find(prediction =>
+          ['car', 'chair', 'person', 'bicycle'].includes(prediction.class) &&
+          prediction.score >= OBSTACLE_CONFIDENCE_THRESHOLD
+        );
+        if (danger && !obstacleDetected) {
+          console.warn('전방 장애물 감지:', danger.class, danger.score);
+          speakWarning('obstacle', '전방에 장애물이 감지되었습니다. 주의하세요.');
         }
-      }, 2000);
-    }
-  } catch (e) {
-    console.log("카메라 접근 권한이 없거나 지원되지 않는 기기입니다.");
+        obstacleDetected = Boolean(danger);
+      } catch (error) {
+        console.error('카메라 장애물 분석에 실패했습니다.', error);
+        stopCamera();
+      } finally {
+        detectionInProgress = false;
+      }
+    }, 2000);
+  } catch (error) {
+    stopCamera();
+    throw error;
   }
 }
 
-window.addEventListener('devicemotion', (e) => {
-  const acc = e.accelerationIncludingGravity;
-  if (acc) {
-    const totalAcc = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
-    if (totalAcc > 30) {
-      alert("⚠️ 급격한 충격/낙상이 감지되었습니다!");
+function stopCamera() {
+  if (detectionTimer) {
+    clearInterval(detectionTimer);
+    detectionTimer = null;
+  }
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById('webcam');
+  if (video) video.srcObject = null;
+  obstacleDetected = false;
+}
+
+function handleDeviceMotion(event) {
+  const acceleration = event.accelerationIncludingGravity || event.acceleration;
+  if (!acceleration) return;
+
+  const { x, y, z } = acceleration;
+  if (![x, y, z].every(Number.isFinite)) return;
+
+  const totalAcceleration = Math.hypot(x, y, z);
+  if (totalAcceleration > SHOCK_THRESHOLD) {
+    console.warn('급격한 충격이 감지되었습니다:', totalAcceleration);
+    speakWarning('shock', '급격한 충격이 감지되었습니다. 안전을 확인해 주세요.');
+  }
+}
+
+async function startMotionMonitoring() {
+  if (motionMonitoring) return;
+  if (!('DeviceMotionEvent' in window)) {
+    console.warn('이 브라우저에서는 동작 센서를 사용할 수 없습니다.');
+    return;
+  }
+
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    const permission = await DeviceMotionEvent.requestPermission();
+    if (permission !== 'granted') {
+      console.warn('동작 센서 권한이 허용되지 않아 충격 감지를 시작하지 못했습니다.');
+      return;
     }
   }
-});
+
+  window.addEventListener('devicemotion', handleDeviceMotion);
+  motionMonitoring = true;
+}
+
+function stopMotionMonitoring() {
+  if (!motionMonitoring) return;
+  window.removeEventListener('devicemotion', handleDeviceMotion);
+  motionMonitoring = false;
+}

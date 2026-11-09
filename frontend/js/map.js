@@ -14,6 +14,30 @@ let currentMode = null;
 let selectedType = 'wheelchair';
 let isGuiding = false;
 const placeSearches = new Map();
+const ROUTE_AREA = {
+  latitude: 35.1159,
+  longitude: 129.0354,
+  radiusMeters: 3000
+};
+
+function isWithinRouteArea(latitude, longitude) {
+  const toRadians = degrees => degrees * Math.PI / 180;
+  const latitudeDelta = toRadians(latitude - ROUTE_AREA.latitude);
+  const longitudeDelta = toRadians(longitude - ROUTE_AREA.longitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(toRadians(ROUTE_AREA.latitude)) *
+    Math.cos(toRadians(latitude)) *
+    Math.sin(longitudeDelta / 2) ** 2;
+  const distanceMeters = 6371000 * 2 * Math.atan2(
+    Math.sqrt(haversine),
+    Math.sqrt(1 - haversine)
+  );
+  return distanceMeters <= ROUTE_AREA.radiusMeters;
+}
+
+function showOutsideCoverageMessage() {
+  alert('현재 경로 데이터는 부산 초량·산복도로 중심 약 3km 범위입니다. 해당 범위 안의 장소를 선택해 주세요.');
+}
 
 function createPinMarker(label, type) {
   const element = document.createElement('div');
@@ -91,9 +115,10 @@ async function findPlaces(mode, query) {
   try {
     const params = new URLSearchParams({
       q: query,
-      limit: '5',
+      limit: '15',
       lat: '35.1159',
-      lon: '129.0354'
+      lon: '129.0354',
+      bbox: '128.9954,35.0859,129.0754,35.1459'
     });
     const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
       signal: controller.signal,
@@ -103,9 +128,12 @@ async function findPlaces(mode, query) {
     const data = await response.json();
     if (sequence !== search.sequence) return;
 
-    search.features = data.features || [];
+    search.features = (data.features || []).filter(feature => {
+      const [longitude, latitude] = feature.geometry.coordinates;
+      return isWithinRouteArea(latitude, longitude);
+    });
     if (!search.features.length) {
-      showPlaceMessage(mode, '검색 결과가 없습니다. 다른 이름으로 검색해 주세요.');
+      showPlaceMessage(mode, '현재 경로 데이터 범위(초량·산복도로 중심 약 3km)에서 검색 결과가 없습니다.');
       return;
     }
 
@@ -267,6 +295,10 @@ function setPinMode(mode) {
 
 map.on('click', function(e) {
   if (!currentMode) return;
+  if (!isWithinRouteArea(e.lngLat.lat, e.lngLat.lng)) {
+    showOutsideCoverageMessage();
+    return;
+  }
 
   if (currentMode === 'start') {
     startCoord = { lat: e.lngLat.lat, lng: e.lngLat.lng };
@@ -310,6 +342,13 @@ map.on('click', function(e) {
 async function requestRoute() {
   if (!startCoord || !endCoord) {
     alert("지도에서 출발지와 목적지를 먼저 선택해 주세요.");
+    return;
+  }
+  if (
+    !isWithinRouteArea(startCoord.lat, startCoord.lng) ||
+    !isWithinRouteArea(endCoord.lat, endCoord.lng)
+  ) {
+    showOutsideCoverageMessage();
     return;
   }
 

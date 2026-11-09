@@ -1,12 +1,11 @@
 const WARNING_COOLDOWN_MS = 8000;
-const SHOCK_THRESHOLD = 30;
+const SHOCK_THRESHOLD = 10;
 const OBSTACLE_CONFIDENCE_THRESHOLD = 0.6;
 
 let cameraStream = null;
 let detectionTimer = null;
 let detectionInProgress = false;
 let motionMonitoring = false;
-let obstacleDetected = false;
 const lastWarningAt = new Map();
 
 function speakWarning(key, message) {
@@ -52,11 +51,10 @@ async function startCamera() {
           ['car', 'chair', 'person', 'bicycle'].includes(prediction.class) &&
           prediction.score >= OBSTACLE_CONFIDENCE_THRESHOLD
         );
-        if (danger && !obstacleDetected) {
+        if (danger) {
           console.warn('전방 장애물 감지:', danger.class, danger.score);
           speakWarning('obstacle', '전방에 장애물이 감지되었습니다. 주의하세요.');
         }
-        obstacleDetected = Boolean(danger);
       } catch (error) {
         console.error('카메라 장애물 분석에 실패했습니다.', error);
         stopCamera();
@@ -81,7 +79,6 @@ function stopCamera() {
   }
   const video = document.getElementById('webcam');
   if (video) video.srcObject = null;
-  obstacleDetected = false;
 }
 
 function handleDeviceMotion(event) {

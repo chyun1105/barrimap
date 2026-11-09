@@ -76,6 +76,37 @@ class TestWeightCalculator(unittest.TestCase):
         self.assertGreater(steep_weight, flat_weight)
 
 class TestRouterService(unittest.TestCase):
+    def test_disconnected_nearest_nodes_snap_to_connected_walk_network(self):
+        graph = nx.MultiDiGraph()
+        graph.add_node(1, x=129.0354, y=35.1159)
+        graph.add_node(2, x=129.0364, y=35.1159)
+        graph.add_node(3, x=129.0355, y=35.1159)
+        graph.add_node(4, x=129.0365, y=35.1159)
+        graph.add_edge(1, 2, length=100.0, highway="footway")
+        weight_calculator.prepare_graph(graph)
+        request = RouteRequest(
+            start_lat=35.1159,
+            start_lon=129.0354,
+            end_lat=35.1159,
+            end_lon=129.0364,
+            user_type="wheelchair",
+            tactile_priority=False,
+        )
+
+        with (
+            patch.object(graph_loader, "G", graph),
+            patch.object(graph_loader, "status", "ready"),
+            patch(
+                "app.services.router_service.ox.distance.nearest_nodes",
+                side_effect=[3, 4, 1, 2],
+            ),
+        ):
+            result = RouterService().calculate_route(request)
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.standard_route.distance_m, 100.0)
+        self.assertTrue(any("연결된 보행망으로 경로를 조정했습니다" in warning for warning in result.warnings))
+
     def test_disconnected_endpoints_return_actionable_error(self):
         graph = nx.MultiDiGraph()
         graph.add_node(1, x=129.0354, y=35.1159)

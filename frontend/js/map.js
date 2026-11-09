@@ -5,6 +5,25 @@ const map = new maplibregl.Map({
   zoom: 13,
   attributionControl: true
 });
+map.on('styleimagemissing', event => {
+  if (map.hasImage(event.id)) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 24;
+  canvas.height = 24;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+
+  context.fillStyle = '#087d78';
+  context.beginPath();
+  context.arc(12, 12, 10, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(12, 12, 3, 0, Math.PI * 2);
+  context.fill();
+  map.addImage(event.id, context.getImageData(0, 0, 24, 24));
+});
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left');
 

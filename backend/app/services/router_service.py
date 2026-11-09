@@ -117,13 +117,46 @@ class RouterService:
                     f"{settings.ROUTE_REGION_LABEL} 안의 장소를 선택해 주세요."
                 )
 
+        warnings = []
         try:
             std_path = nx.shortest_path(G, orig_node, dest_node, weight="length")
         except nx.NetworkXNoPath:
-            raise ValueError(
-                "선택한 출발지와 도착지 사이에 연결된 보행 경로가 없습니다. "
-                "지도에서 두 지점을 조금 옮겨 다시 시도해 주세요. "
-                "실제로 연결된 길인데도 계속 발생하면 지도 데이터에 연결 정보가 누락되었을 수 있습니다."
+            largest_component = max(nx.weakly_connected_components(G), key=len)
+            if len(largest_component) < 2:
+                raise ValueError(self._no_route_message())
+
+            connected_graph = G.subgraph(largest_component)
+            snapped_start = ox.distance.nearest_nodes(
+                connected_graph, req.start_lon, req.start_lat
+            )
+            snapped_end = ox.distance.nearest_nodes(
+                connected_graph, req.end_lon, req.end_lat
+            )
+            snap_distances = []
+            for label, node, lat, lon in (
+                ("출발지", snapped_start, req.start_lat, req.start_lon),
+                ("도착지", snapped_end, req.end_lat, req.end_lon),
+            ):
+                nearest_node = G.nodes[node]
+                distance_m = geodesic(
+                    (lat, lon), (nearest_node["y"], nearest_node["x"])
+                ).meters
+                if distance_m > 300:
+                    raise ValueError(self._no_route_message())
+                snap_distances.append(distance_m)
+
+            try:
+                std_path = nx.shortest_path(
+                    connected_graph, snapped_start, snapped_end, weight="length"
+                )
+            except nx.NetworkXNoPath:
+                raise ValueError(self._no_route_message())
+
+            orig_node, dest_node = snapped_start, snapped_end
+            warnings.append(
+                "가까운 보행로 데이터가 서로 연결되지 않아 연결된 보행망으로 경로를 조정했습니다 "
+                f"(출발지 약 {round(snap_distances[0])}m, 도착지 약 {round(snap_distances[1])}m). "
+                "실제 현장 경로와 다를 수 있으니 안내를 확인해 주세요."
             )
 
         def custom_weight(u, v, edge_options):
@@ -158,7 +191,6 @@ class RouterService:
             G, acc_path, req.user_type, req.tactile_priority, accessible=True
         )
 
-        warnings = []
         if req.user_type == "visually_impaired" and req.tactile_priority:
             if acc_route.tactile_no_count:
                 warnings.append(
@@ -178,6 +210,14 @@ class RouterService:
             standard_route=std_route,
             accessible_route=acc_route,
             warnings=warnings
+        )
+
+    @staticmethod
+    def _no_route_message():
+        return (
+            "선택한 출발지와 도착지 사이에 연결된 보행 경로가 없습니다. "
+            "지도에서 두 지점을 조금 옮겨 다시 시도해 주세요. "
+            "실제로 연결된 길인데도 계속 발생하면 지도 데이터에 연결 정보가 누락되었을 수 있습니다."
         )
 
 router_service = RouterService()

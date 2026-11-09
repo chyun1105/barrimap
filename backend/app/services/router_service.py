@@ -120,7 +120,11 @@ class RouterService:
         try:
             std_path = nx.shortest_path(G, orig_node, dest_node, weight="length")
         except nx.NetworkXNoPath:
-            raise ValueError("일반 최단 경로를 찾을 수 없습니다.")
+            raise ValueError(
+                "선택한 출발지와 도착지 사이에 연결된 보행 경로가 없습니다. "
+                "지도에서 두 지점을 조금 옮겨 다시 시도해 주세요. "
+                "실제로 연결된 길인데도 계속 발생하면 지도 데이터에 연결 정보가 누락되었을 수 있습니다."
+            )
 
         def custom_weight(u, v, edge_options):
             return min(

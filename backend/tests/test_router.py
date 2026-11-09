@@ -76,6 +76,29 @@ class TestWeightCalculator(unittest.TestCase):
         self.assertGreater(steep_weight, flat_weight)
 
 class TestRouterService(unittest.TestCase):
+    def test_disconnected_endpoints_return_actionable_error(self):
+        graph = nx.MultiDiGraph()
+        graph.add_node(1, x=129.0354, y=35.1159)
+        graph.add_node(2, x=129.0364, y=35.1159)
+        request = RouteRequest(
+            start_lat=35.1159,
+            start_lon=129.0354,
+            end_lat=35.1159,
+            end_lon=129.0364,
+            user_type="wheelchair",
+            tactile_priority=False,
+        )
+
+        with (
+            patch.object(graph_loader, "G", graph),
+            patch.object(graph_loader, "status", "ready"),
+            patch("app.services.router_service.ox.distance.nearest_nodes", side_effect=[1, 2]),
+        ):
+            with self.assertRaisesRegex(ValueError, "연결된 보행 경로가 없습니다") as error:
+                RouterService().calculate_route(request)
+
+        self.assertIn("지도에서 두 지점을 조금 옮겨 다시 시도", str(error.exception))
+
     def test_wheelchair_route_prefers_flatter_alternative_and_returns_segments(self):
         graph = nx.MultiDiGraph()
         graph.graph["crs"] = "EPSG:4326"

@@ -76,6 +76,72 @@ class TestWeightCalculator(unittest.TestCase):
         self.assertGreater(steep_weight, flat_weight)
 
 class TestRouterService(unittest.TestCase):
+    def test_routes_more_than_ten_kilometers_apart_are_rejected(self):
+        request = RouteRequest(
+            start_lat=35.1159,
+            start_lon=129.0354,
+            end_lat=37.5665,
+            end_lon=126.9780,
+            user_type="wheelchair",
+            tactile_priority=False,
+        )
+
+        with patch.object(graph_loader, "get_graph") as get_graph:
+            with self.assertRaisesRegex(ValueError, "10km를 초과"):
+                RouterService().calculate_route(request)
+
+        get_graph.assert_not_called()
+
+    def test_seoul_coordinates_use_the_seoul_graph(self):
+        graph = nx.MultiDiGraph()
+        graph.graph["crs"] = "EPSG:4326"
+        graph.add_node(1, x=126.9780, y=37.5665)
+        graph.add_node(2, x=126.9790, y=37.5665)
+        graph.add_edge(1, 2, length=100.0, highway="footway")
+        weight_calculator.prepare_graph(graph)
+        request = RouteRequest(
+            start_lat=37.5665,
+            start_lon=126.9780,
+            end_lat=37.5665,
+            end_lon=126.9790,
+            user_type="wheelchair",
+            tactile_priority=False,
+        )
+
+        with (
+            patch.object(graph_loader, "graphs", {"seoul": graph}),
+            patch.object(graph_loader, "status", "ready"),
+        ):
+            result = RouterService().calculate_route(request)
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.standard_route.distance_m, 100.0)
+
+    def test_gwangju_coordinates_use_the_gwangju_graph(self):
+        graph = nx.MultiDiGraph()
+        graph.graph["crs"] = "EPSG:4326"
+        graph.add_node(1, x=126.8484, y=35.2281)
+        graph.add_node(2, x=126.8494, y=35.2281)
+        graph.add_edge(1, 2, length=100.0, highway="footway")
+        weight_calculator.prepare_graph(graph)
+        request = RouteRequest(
+            start_lat=35.2281,
+            start_lon=126.8484,
+            end_lat=35.2281,
+            end_lon=126.8494,
+            user_type="wheelchair",
+            tactile_priority=False,
+        )
+
+        with (
+            patch.object(graph_loader, "graphs", {"gwangju": graph}),
+            patch.object(graph_loader, "status", "ready"),
+        ):
+            result = RouterService().calculate_route(request)
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.standard_route.distance_m, 100.0)
+
     def test_disconnected_nearest_nodes_snap_to_connected_walk_network(self):
         graph = nx.MultiDiGraph()
         graph.add_node(1, x=129.0354, y=35.1159)

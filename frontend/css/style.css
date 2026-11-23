@@ -175,6 +175,38 @@ button:focus-visible, input:focus-visible {
 }
 .map-pick-btn:hover, .map-pick-btn.setting { background: #dff3ea; color: #087d68; }
 .map-pick-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.current-location-marker {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(22, 133, 248, 0.3);
+  border-radius: 50%;
+  background: rgba(22, 133, 248, 0.12);
+}
+.current-location-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1685f8;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+.current-location-arrow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 12px;
+  border-radius: 4px;
+  background: #084b9a;
+  box-shadow: 0 0 0 1px #fff;
+  transform: translate(-50%, -100%) rotate(var(--heading, 0deg));
+  transform-origin: 50% 100%;
+}
 .location-connector { height: 1px; margin: 0 0 0 34px; background: #edf0e9; }
 .location-suggestions {
   position: absolute;

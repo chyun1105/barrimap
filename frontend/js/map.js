@@ -32,30 +32,45 @@ let startMarker = null, endMarker = null;
 let currentMode = null;
 let selectedType = 'wheelchair';
 let isGuiding = false;
+let currentLocationWatch = null;
+let currentLocationMarker = null;
+let currentLocationElement = null;
+let currentHeading = null;
+let routeGuidance = null;
 const placeSearches = new Map();
-const ROUTE_AREA = {
-  latitude: 35.1159,
-  longitude: 129.0354,
-  radiusMeters: 3000
-};
+const ROUTE_AREAS = [
+  { label: '부산 초량·산복도로', latitude: 35.1159, longitude: 129.0354, radiusMeters: 3000 },
+  { label: '서울 시청', latitude: 37.5665, longitude: 126.9780, radiusMeters: 3000 },
+  { label: '광주 첨단·광주과학고', latitude: 35.2280544, longitude: 126.8483814, radiusMeters: 3000 }
+];
 
-function isWithinRouteArea(latitude, longitude) {
+function distanceMeters(latitude1, longitude1, latitude2, longitude2) {
   const toRadians = degrees => degrees * Math.PI / 180;
-  const latitudeDelta = toRadians(latitude - ROUTE_AREA.latitude);
-  const longitudeDelta = toRadians(longitude - ROUTE_AREA.longitude);
+  const latitudeDelta = toRadians(latitude2 - latitude1);
+  const longitudeDelta = toRadians(longitude2 - longitude1);
   const haversine = Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(toRadians(ROUTE_AREA.latitude)) *
-    Math.cos(toRadians(latitude)) *
+    Math.cos(toRadians(latitude1)) *
+    Math.cos(toRadians(latitude2)) *
     Math.sin(longitudeDelta / 2) ** 2;
-  const distanceMeters = 6371000 * 2 * Math.atan2(
+  return 6371000 * 2 * Math.atan2(
     Math.sqrt(haversine),
     Math.sqrt(1 - haversine)
   );
-  return distanceMeters <= ROUTE_AREA.radiusMeters;
+}
+
+function routeAreaForPoint(latitude, longitude) {
+  return ROUTE_AREAS.find(area =>
+    distanceMeters(latitude, longitude, area.latitude, area.longitude) <= area.radiusMeters
+  );
+}
+
+function isWithinRouteArea(latitude, longitude) {
+  return Boolean(routeAreaForPoint(latitude, longitude));
 }
 
 function showOutsideCoverageMessage() {
-  alert('현재 경로 데이터는 부산 초량·산복도로 중심 약 3km 범위입니다. 해당 범위 안의 장소를 선택해 주세요.');
+  const areas = ROUTE_AREAS.map(area => `${area.label} 중심 약 3km`).join(', ');
+  alert(`현재 경로 데이터 범위 밖입니다. ${areas} 안의 장소를 선택해 주세요.`);
 }
 
 function createPinMarker(label, type) {
@@ -105,7 +120,8 @@ function formatPlace(feature) {
     properties.street,
     properties.district,
     properties.city,
-    properties.state
+    properties.state,
+    properties.route_area
   ].filter(Boolean);
   const detail = [...new Set(address)].filter(part => part !== name).join(', ');
   return { name, detail };
@@ -132,27 +148,50 @@ async function findPlaces(mode, query) {
   showPlaceMessage(mode, '장소를 찾고 있어요...');
 
   try {
-    const params = new URLSearchParams({
-      q: query,
-      limit: '15',
-      lat: '35.1159',
-      lon: '129.0354',
-      bbox: '128.9954,35.0859,129.0754,35.1459'
-    });
-    const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) throw new Error(`장소 검색 서버 응답 오류 (${response.status})`);
-    const data = await response.json();
+    const regionFeatures = await Promise.all(ROUTE_AREAS.map(async area => {
+      const latitudeDelta = area.radiusMeters / 111320;
+      const longitudeDelta = area.radiusMeters / (111320 * Math.cos(area.latitude * Math.PI / 180));
+      const params = new URLSearchParams({
+        q: query,
+        limit: '15',
+        lat: String(area.latitude),
+        lon: String(area.longitude),
+        bbox: [
+          area.longitude - longitudeDelta,
+          area.latitude - latitudeDelta,
+          area.longitude + longitudeDelta,
+          area.latitude + latitudeDelta
+        ].join(',')
+      });
+      const response = await fetch(`https://photon.komoot.io/api/?${params}`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error(`장소 검색 서버 응답 오류 (${response.status})`);
+      const data = await response.json();
+      return (data.features || [])
+        .filter(feature => {
+          const [longitude, latitude] = feature.geometry.coordinates;
+          return distanceMeters(latitude, longitude, area.latitude, area.longitude) <= area.radiusMeters;
+        })
+        .map(feature => ({
+          ...feature,
+          properties: { ...feature.properties, route_area: area.label }
+        }));
+    }));
     if (sequence !== search.sequence) return;
 
-    search.features = (data.features || []).filter(feature => {
-      const [longitude, latitude] = feature.geometry.coordinates;
-      return isWithinRouteArea(latitude, longitude);
+    const uniqueFeatures = new Map();
+    regionFeatures.flat().forEach(feature => {
+      const properties = feature.properties;
+      const key = properties.osm_id
+        ? `${properties.osm_type}-${properties.osm_id}`
+        : `${properties.route_area}-${feature.geometry.coordinates.join(',')}`;
+      if (!uniqueFeatures.has(key)) uniqueFeatures.set(key, feature);
     });
+    search.features = Array.from(uniqueFeatures.values());
     if (!search.features.length) {
-      showPlaceMessage(mode, '현재 경로 데이터 범위(초량·산복도로 중심 약 3km)에서 검색 결과가 없습니다.');
+      showPlaceMessage(mode, '부산 초량·산복도로, 서울 시청, 광주 첨단의 경로 데이터 범위에서 검색 결과가 없습니다.');
       return;
     }
 
@@ -370,6 +409,10 @@ async function requestRoute() {
     showOutsideCoverageMessage();
     return;
   }
+  if (distanceMeters(startCoord.lat, startCoord.lng, endCoord.lat, endCoord.lng) > 10000) {
+    alert('출발지와 목적지 사이의 직선거리가 10km를 초과했습니다. 10km 이내의 경로를 선택해 주세요.');
+    return;
+  }
 
   stopRouteGuidance();
   document.querySelector('.guidance-actions').style.display = 'none';
@@ -394,6 +437,7 @@ async function requestRoute() {
 }
 
 function renderRoutes(data) {
+  routeGuidance = createRouteGuidance(data.accessible_route);
   const drawRoutes = () => {
     [
       'standard-route',
@@ -512,31 +556,261 @@ function renderRoutes(data) {
   document.getElementById('btn-guidance-stop').style.display = 'none';
 }
 
+function bearingBetween(from, to) {
+  const toRadians = degrees => degrees * Math.PI / 180;
+  const toDegrees = radians => radians * 180 / Math.PI;
+  const latitude1 = toRadians(from[0]);
+  const latitude2 = toRadians(to[0]);
+  const longitudeDelta = toRadians(to[1] - from[1]);
+  const y = Math.sin(longitudeDelta) * Math.cos(latitude2);
+  const x = Math.cos(latitude1) * Math.sin(latitude2) -
+    Math.sin(latitude1) * Math.cos(latitude2) * Math.cos(longitudeDelta);
+  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+
+function coordinateAtDistance(coordinates, cumulativeDistances, distance) {
+  let low = 0;
+  let high = cumulativeDistances.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (cumulativeDistances[middle] < distance) low = middle + 1;
+    else high = middle;
+  }
+
+  const endIndex = Math.max(1, low);
+  const startIndex = endIndex - 1;
+  const segmentDistance = cumulativeDistances[endIndex] - cumulativeDistances[startIndex];
+  const ratio = segmentDistance
+    ? (distance - cumulativeDistances[startIndex]) / segmentDistance
+    : 0;
+  return [
+    coordinates[startIndex][0] + (coordinates[endIndex][0] - coordinates[startIndex][0]) * ratio,
+    coordinates[startIndex][1] + (coordinates[endIndex][1] - coordinates[startIndex][1]) * ratio
+  ];
+}
+
+function createRouteGuidance(route) {
+  const coordinates = route.coordinates;
+  const cumulativeDistances = [0];
+  for (let index = 1; index < coordinates.length; index += 1) {
+    cumulativeDistances.push(
+      cumulativeDistances[index - 1] + distanceMeters(
+        coordinates[index - 1][0],
+        coordinates[index - 1][1],
+        coordinates[index][0],
+        coordinates[index][1]
+      )
+    );
+  }
+
+  const totalDistance = cumulativeDistances.at(-1) || 0;
+  const maneuvers = [];
+  let lastManeuverAt = -Infinity;
+  for (let distance = 40; distance < totalDistance - 40; distance += 10) {
+    const before = coordinateAtDistance(coordinates, cumulativeDistances, distance - 20);
+    const turnPoint = coordinateAtDistance(coordinates, cumulativeDistances, distance);
+    const after = coordinateAtDistance(coordinates, cumulativeDistances, distance + 20);
+    const incoming = bearingBetween(before, turnPoint);
+    const outgoing = bearingBetween(turnPoint, after);
+    const turn = ((outgoing - incoming + 540) % 360) - 180;
+    if (Math.abs(turn) >= 50 && Math.abs(turn) <= 150 && distance - lastManeuverAt >= 70) {
+      maneuvers.push({
+        distance,
+        direction: turn > 0 ? '오른쪽' : '왼쪽',
+        announced: false,
+        turning: false
+      });
+      lastManeuverAt = distance;
+    }
+  }
+
+  return { coordinates, cumulativeDistances, totalDistance, maneuvers, progressMeters: 0, arrived: false };
+}
+
+function updateRouteGuidance(latitude, longitude) {
+  if (!isGuiding || !routeGuidance || routeGuidance.arrived) return;
+  const { coordinates, cumulativeDistances, totalDistance, maneuvers } = routeGuidance;
+  if (coordinates.length < 2) return;
+
+  const metersPerLongitude = 111320 * Math.cos(latitude * Math.PI / 180);
+  const metersPerLatitude = 110540;
+  const minDistance = Math.max(0, routeGuidance.progressMeters - 15);
+  const maxDistance = Math.min(totalDistance, routeGuidance.progressMeters + 500);
+  let closestDistance = Infinity;
+  let closestProgress = routeGuidance.progressMeters;
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const segmentStart = cumulativeDistances[index];
+    const segmentEnd = cumulativeDistances[index + 1];
+    if (segmentEnd < minDistance || segmentStart > maxDistance) continue;
+
+    const startX = (coordinates[index][1] - longitude) * metersPerLongitude;
+    const startY = (coordinates[index][0] - latitude) * metersPerLatitude;
+    const endX = (coordinates[index + 1][1] - longitude) * metersPerLongitude;
+    const endY = (coordinates[index + 1][0] - latitude) * metersPerLatitude;
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const segmentLengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const ratio = segmentLengthSquared
+      ? Math.max(0, Math.min(1, -(startX * deltaX + startY * deltaY) / segmentLengthSquared))
+      : 0;
+    const distance = Math.hypot(startX + ratio * deltaX, startY + ratio * deltaY);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestProgress = segmentStart + ratio * (segmentEnd - segmentStart);
+    }
+  }
+  if (closestDistance > 100) return;
+
+  routeGuidance.progressMeters = Math.max(routeGuidance.progressMeters, closestProgress);
+  const remaining = Math.max(0, totalDistance - routeGuidance.progressMeters);
+  if (remaining <= 25 && distanceMeters(
+    latitude,
+    longitude,
+    coordinates.at(-1)[0],
+    coordinates.at(-1)[1]
+  ) <= 40) {
+    routeGuidance.arrived = true;
+    speakText('목적지에 도착했습니다.');
+    return;
+  }
+
+  const maneuver = maneuvers.find(item => !item.turning);
+  if (!maneuver) return;
+  const untilTurn = maneuver.distance - routeGuidance.progressMeters;
+  if (!maneuver.announced && untilTurn <= 80 && untilTurn > 25) {
+    maneuver.announced = true;
+    speakText(`약 ${Math.round(untilTurn / 10) * 10}미터 앞에서 ${maneuver.direction}으로 방향을 바꾸세요.`);
+  } else if (untilTurn <= 25 && untilTurn >= -15) {
+    maneuver.announced = true;
+    maneuver.turning = true;
+    speakText(`지금 ${maneuver.direction}으로 방향을 바꾸세요.`);
+  } else if (untilTurn < -15) {
+    maneuver.turning = true;
+  }
+}
+
+function updateCurrentLocation(position) {
+  if (!isGuiding) return;
+  const { latitude, longitude } = position.coords;
+  if (!currentLocationMarker) {
+    currentLocationElement = document.createElement('div');
+    currentLocationElement.className = 'current-location-marker';
+    currentLocationElement.setAttribute('aria-label', '현재 위치와 방향');
+    currentLocationElement.innerHTML =
+      '<span class="current-location-dot"></span><span class="current-location-arrow"></span>';
+    currentLocationMarker = new maplibregl.Marker({
+      element: currentLocationElement,
+      anchor: 'center'
+    }).setLngLat([longitude, latitude]).addTo(map);
+    map.easeTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 16), duration: 500 });
+  } else {
+    currentLocationMarker.setLngLat([longitude, latitude]);
+  }
+  if (currentHeading !== null) setCurrentHeading(currentHeading);
+  if (Number.isFinite(position.coords.heading) && position.coords.heading >= 0) {
+    setCurrentHeading(position.coords.heading);
+  }
+  updateRouteGuidance(latitude, longitude);
+}
+
+function startLocationTracking() {
+  if (!navigator.geolocation) {
+    alert('이 기기에서 위치 정보를 사용할 수 없습니다.');
+    return;
+  }
+  if (currentLocationWatch !== null) navigator.geolocation.clearWatch(currentLocationWatch);
+  currentLocationWatch = navigator.geolocation.watchPosition(
+    updateCurrentLocation,
+    error => {
+      console.error('현재 위치를 가져오지 못했습니다.', error);
+      if (error.code === error.PERMISSION_DENIED) {
+        alert('현재 위치를 표시하려면 위치 권한을 허용해 주세요.');
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+  );
+}
+
+function setCurrentHeading(heading) {
+  currentHeading = (heading + 360) % 360;
+  if (currentLocationElement) {
+    currentLocationElement.style.setProperty(
+      '--heading',
+      `${currentHeading - map.getBearing()}deg`
+    );
+  }
+}
+
+function updateDeviceHeading(event) {
+  const heading = Number.isFinite(event.webkitCompassHeading)
+    ? event.webkitCompassHeading
+    : Number.isFinite(event.alpha) && event.absolute
+      ? 360 - event.alpha
+      : null;
+  if (heading !== null) setCurrentHeading(heading);
+}
+
+function updateHeadingForMapBearing() {
+  if (currentHeading !== null) setCurrentHeading(currentHeading);
+}
+
+async function startHeadingTracking() {
+  if (!('DeviceOrientationEvent' in window)) return;
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    const permission = await DeviceOrientationEvent.requestPermission();
+    if (permission !== 'granted') {
+      console.warn('방향 센서 권한이 허용되지 않아 현재 방향을 표시하지 못합니다.');
+      return;
+    }
+  }
+  window.addEventListener('deviceorientation', updateDeviceHeading, { passive: true });
+  map.on('rotate', updateHeadingForMapBearing);
+}
+
+function stopHeadingTracking() {
+  window.removeEventListener('deviceorientation', updateDeviceHeading);
+  map.off('rotate', updateHeadingForMapBearing);
+}
+
 async function startRouteGuidance() {
   isGuiding = true;
   document.getElementById('btn-guidance-start').style.display = 'none';
   document.getElementById('btn-guidance-stop').style.display = 'block';
 
-  try {
-    await startMotionMonitoring();
-  } catch (error) {
-    console.error("동작 센서를 시작하지 못했습니다.", error);
+  speakText(`경로 안내를 시작합니다. 목적지까지 약 ${Math.round((routeGuidance?.totalDistance || 0) / 10) * 10}미터입니다.`);
+  startLocationTracking();
+  const headingTask = startHeadingTracking();
+  const motionTask = startMotionMonitoring();
+  const cameraTask = selectedType === 'visually_impaired'
+    ? startCamera()
+    : Promise.resolve();
+  if (selectedType === 'visually_impaired') {
+    document.getElementById('cam-container').style.display = 'block';
   }
 
-  if (selectedType !== 'visually_impaired') return;
-
-  document.getElementById('cam-container').style.display = 'block';
-  try {
-    await startCamera();
-  } catch (error) {
-    stopRouteGuidance();
-    console.error("카메라를 시작하지 못했습니다.", error);
-    alert("카메라를 시작할 수 없습니다. 카메라 권한과 HTTPS 연결을 확인해 주세요.");
+  const results = await Promise.allSettled([headingTask, motionTask, cameraTask]);
+  results.slice(0, 2).forEach(result => {
+    if (result.status === 'rejected') console.error('경로 안내 센서를 시작하지 못했습니다.', result.reason);
+  });
+  if (results[2].status === 'rejected') {
+    stopCamera();
+    document.getElementById('cam-container').style.display = 'none';
+    console.error('카메라를 시작하지 못했습니다.', results[2].reason);
+    alert('카메라를 시작할 수 없습니다. 카메라 권한과 HTTPS 연결을 확인해 주세요.');
   }
 }
 
 function stopRouteGuidance() {
   isGuiding = false;
+  if (currentLocationWatch !== null) {
+    navigator.geolocation.clearWatch(currentLocationWatch);
+    currentLocationWatch = null;
+  }
+  stopHeadingTracking();
+  if (currentLocationMarker) currentLocationMarker.remove();
+  currentLocationMarker = null;
+  currentLocationElement = null;
+  currentHeading = null;
   const camContainer = document.getElementById('cam-container');
   if (camContainer) camContainer.style.display = 'none';
   if (typeof stopCamera === 'function') stopCamera();

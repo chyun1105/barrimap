@@ -9,6 +9,18 @@ from app.models.schemas import RouteRequest, RouteResponse, RouteDetail, Tactile
 
 class RouterService:
     @staticmethod
+    def _region_for_coordinate(latitude, longitude):
+        matching_regions = []
+        for region_id, region in settings.ROUTE_REGIONS.items():
+            distance_m = geodesic(
+                (latitude, longitude),
+                (region["latitude"], region["longitude"])
+            ).meters
+            if distance_m <= region["radius_m"]:
+                matching_regions.append((distance_m, region_id))
+        return min(matching_regions)[1] if matching_regions else None
+
+    @staticmethod
     def _edge_coordinates(graph, start, end, edge):
         geometry = edge.get("geometry")
         if isinstance(geometry, str):
@@ -93,11 +105,26 @@ class RouterService:
         )
 
     def calculate_route(self, req: RouteRequest) -> RouteResponse:
-        G = graph_loader.G
-        if G is None:
-            if graph_loader.status == "failed":
-                raise RuntimeError("지도 데이터를 불러오지 못했습니다. 서버 로그를 확인해 주세요.")
-            raise RuntimeError("지도 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.")
+        distance_m = geodesic(
+            (req.start_lat, req.start_lon),
+            (req.end_lat, req.end_lon)
+        ).meters
+        if distance_m > settings.MAX_ROUTE_DISTANCE_METERS:
+            raise ValueError("출발지와 목적지 사이의 직선거리가 10km를 초과했습니다. 10km 이내의 경로를 선택해 주세요.")
+
+        start_region = self._region_for_coordinate(req.start_lat, req.start_lon)
+        end_region = self._region_for_coordinate(req.end_lat, req.end_lon)
+        if start_region is None or end_region is None:
+            region_labels = ", ".join(
+                f"{region['label']} 주변 3km"
+                for region in settings.ROUTE_REGIONS.values()
+            )
+            raise ValueError(f"현재 경로 데이터 범위 밖입니다. {region_labels} 안의 장소를 선택해 주세요.")
+        if start_region != end_region:
+            raise ValueError("출발지와 목적지는 같은 경로 데이터 권역 안에서 선택해 주세요.")
+
+        G = graph_loader.get_graph(start_region)
+        region_label = settings.ROUTE_REGIONS[start_region]["label"]
 
         orig_node = ox.distance.nearest_nodes(G, req.start_lon, req.start_lat)
         dest_node = ox.distance.nearest_nodes(G, req.end_lon, req.end_lat)
@@ -113,8 +140,8 @@ class RouterService:
             ).meters
             if distance_m > 300:
                 raise ValueError(
-                    f"{label}가 현재 경로 데이터 범위({settings.ROUTE_REGION_LABEL}) 밖에 있습니다. "
-                    f"{settings.ROUTE_REGION_LABEL} 안의 장소를 선택해 주세요."
+                    f"{label}가 현재 경로 데이터 범위({region_label}) 밖에 있습니다. "
+                    f"{region_label} 주변 보행로를 선택해 주세요."
                 )
 
         warnings = []

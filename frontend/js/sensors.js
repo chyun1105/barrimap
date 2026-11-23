@@ -8,21 +8,30 @@ let detectionInProgress = false;
 let motionMonitoring = false;
 const lastWarningAt = new Map();
 
-function speakWarning(key, message) {
+function speakText(message) {
   if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
     console.warn('이 브라우저는 음성 안내를 지원하지 않습니다:', message);
-    return;
+    return false;
   }
 
-  const now = Date.now();
-  if (now - (lastWarningAt.get(key) || 0) < WARNING_COOLDOWN_MS) return;
-  lastWarningAt.set(key, now);
-
+  const speech = window.speechSynthesis;
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.lang = 'ko-KR';
   utterance.rate = 1;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  const koreanVoice = speech.getVoices().find(voice =>
+    voice.lang.toLowerCase().startsWith('ko')
+  );
+  if (koreanVoice) utterance.voice = koreanVoice;
+  utterance.onerror = event => console.error('음성 안내를 재생하지 못했습니다.', event.error);
+  speech.resume();
+  speech.speak(utterance);
+  return true;
+}
+
+function speakWarning(key, message) {
+  const now = Date.now();
+  if (now - (lastWarningAt.get(key) || 0) < WARNING_COOLDOWN_MS) return;
+  if (speakText(message)) lastWarningAt.set(key, now);
 }
 
 async function startCamera() {
